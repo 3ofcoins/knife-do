@@ -11,4 +11,3 @@ group :developer_workstation do
   gem 'pry-rescue'
   gem 'pry-stack_explorer'
 end
-
