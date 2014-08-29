@@ -39,10 +39,9 @@ module KnifeTasks
 
   def load_rake_as_lib
     Dir.chdir(Chef::Config.find_chef_repo_path(__FILE__))
-    if Rake.application.tasks.empty?
-      Rake.application.init
-      Rake.application.load_rakefile
-    end
+    return unless Rake.application.tasks.empty?
+    Rake.application.init
+    Rake.application.load_rakefile
   end
 
   class Do < Chef::Knife
@@ -53,6 +52,8 @@ module KnifeTasks
       #
     end
 
+    # Options Rake magically captures from the command line. Defined here
+    # based on `rake -h` so they're returned by `knife do task --help`.
     option :trace,
            short: '-t',
            long: '--trace=[OUT]',
@@ -61,16 +62,24 @@ module KnifeTasks
     option :version,
            short: '-V',
            long: '--version',
-           description: 'Display Rake version.'
+           description: 'Display knife do version.',
+           proc: proc { p "knife-do, version #{KnifeTasks::VERSION}" }
 
     option :comments,
            short: '-C',
            long: '--comments',
            description: 'Display Rake version.'
 
+    option :verbose,
+           short: '-v',
+           long: '--verbose',
+           description: "Verbose"
+
     def run
       load_rake_as_lib
-      Rake.application.tasks.each { |t| p "rake #{t.name} # #{t.comment}" }
+      Rake.application.options.show_tasks = :tasks
+      Rake.application.options.show_task_pattern = //
+      Rake.application.display_tasks_and_comments
     end
   end
 
@@ -169,12 +178,19 @@ module KnifeTasks
            long: '--rakelib RAKELIBDIR',
            description: "Auto-import any .rake files in RAKELIBDIR. (default is 'rakelib')"
 
+    option :verbose,
+           short: '-v',
+           long: '--verbose',
+           description: "Verbose"
+
     def run
       load_rake_as_lib
       if ARGV.drop(2).empty?
         Rake::Task[:default].invoke
       else
-        ARGV.drop(2).each { |t| Rake.application.invoke_task(t) }
+        Rake.application.top_level_tasks.each do |task_name|
+          Rake.application.invoke_task(task_name) unless %w(do task).include? task_name
+        end
       end
     end
   end
