@@ -3,6 +3,9 @@ require 'spec_helper'
 module KnifeTasks
   include Rake
   describe KnifeTasks do
+    before do
+       Dir.chdir(File.realpath(File.join(File.dirname(__FILE__), '../fixtures')))
+    end
 
     it "shouldn't fail a smoke test" do
       expect { (2 + 2) == 4 }
@@ -31,6 +34,5 @@ module KnifeTasks
     it 'should execute ruby code' do
       `knife do task -e "p 2+2"`.must_equal "4\n"
     end
-
   end
 end
