@@ -11,7 +11,6 @@ module Rake
 
   class CustomApplication < Application
     DEFAULT_RAKEFILES = ['config/tasks.rb'].freeze
-
     def initialize
       super
       @name = 'rake'
@@ -29,6 +28,32 @@ module Rake
       @tty_output = STDOUT.tty?
       @terminal_columns = ENV['RAKE_COLUMNS'].to_i
     end
+
+    # overriden original method to use 'knife do task' instead of 'rake'
+    # in task list
+    def display_tasks_and_comments
+      displayable_tasks = tasks.select do |t|
+        (options.show_all_tasks || t.comment) &&
+          t.name =~ options.show_task_pattern
+      end
+      case options.show_tasks
+      when :tasks
+        width = displayable_tasks.map { |t| t.name_with_args.length }.max || 10
+        if truncate_output?
+          max_column = terminal_width - name.size - width - 7
+        else
+          max_column = nil
+        end
+
+        displayable_tasks.each do |t|
+          printf("knife do task %-#{width}s  # %s\n",
+                 t.name_with_args,
+                 max_column ? truncate(t.comment, max_column) : t.comment)
+        end
+      else
+        super
+      end
+    end
   end
 end
 
@@ -40,8 +65,9 @@ module KnifeTasks
   def load_rake_as_lib
     Dir.chdir(Chef::Config.find_chef_repo_path(__FILE__))
     return unless Rake.application.tasks.empty?
-    Rake.application.init
-    Rake.application.load_rakefile
+    @rake_app = Rake.application
+    @rake_app.init
+    @rake_app.load_rakefile
   end
 
   class Do < Chef::Knife
@@ -77,9 +103,9 @@ module KnifeTasks
 
     def run
       load_rake_as_lib
-      Rake.application.options.show_tasks = :tasks
-      Rake.application.options.show_task_pattern = //
-      Rake.application.display_tasks_and_comments
+      @rake_app.options.show_tasks = :tasks
+      @rake_app.options.show_task_pattern = //
+      @rake_app.display_tasks_and_comments
     end
   end
 
@@ -188,8 +214,8 @@ module KnifeTasks
       if ARGV.drop(2).empty?
         Rake::Task[:default].invoke
       else
-        Rake.application.top_level_tasks.each do |task_name|
-          Rake.application.invoke_task(task_name) unless %w(do task).include? task_name
+        @rake_app.top_level_tasks.each do |task_name|
+          @rake_app.invoke_task(task_name) unless %w(do task).include? task_name
         end
       end
     end
